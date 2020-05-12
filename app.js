@@ -38,8 +38,9 @@ mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
-  googleId:String,
-  facebookId:String
+  googleId: String,
+  facebookId: String,
+  secret: String
 
 });
 userSchema.plugin(findOrCreate);
@@ -85,7 +86,9 @@ passport.use(new FacebookStrategy({
     callbackURL: "http://localhost:3000/auth/facebook/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
-    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+    User.findOrCreate({
+      facebookId: profile.id
+    }, function(err, user) {
       return cb(err, user);
     });
   }
@@ -109,11 +112,13 @@ app.get("/auth/google/secrets",
     // Successful authentication, redirect secrets.
     res.redirect('/secrets');
   });
-  app.get('/auth/facebook',
+app.get('/auth/facebook',
   passport.authenticate('facebook'));
 
 app.get('/auth/facebook/secrets',
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
+  passport.authenticate('facebook', {
+    failureRedirect: '/login'
+  }),
   function(req, res) {
     // Successful authentication, redirect home.
     res.redirect('/secrets');
@@ -130,12 +135,47 @@ app.get("/register", function(req, res) {
   res.render("register");
 });
 app.get("/secrets", function(req, res) {
+  User.find({
+    "secret": {
+      $ne: null
+    }
+  }, function(err, foundUser) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        res.render("secrets", {
+          userWithSecrets: foundUser
+        });
+      }
+    }
+  });
+});
+app.post("/submit", function(req, res) {
+  const submittedSecret = req.body.secret;
+
+  User.findById(req.user.id, function(err, foundUser) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function() {
+          res.redirect("/secrets");
+        });
+      }
+
+    }
+  });
+});
+app.get("/submit", function(req, res) {
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    res.render("submit");
   } else {
     res.render("login");
   }
-});
+
+})
 app.post("/register", function(req, res) {
   User.register({
     username: req.body.username
